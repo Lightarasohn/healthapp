@@ -8,7 +8,6 @@ namespace healthapp.DTOs.DoctorDTOs
     public class UpdateDoctorScheduleDto
     {
         public object Clocks { get; set; } = null!;
-        public string? Location { get; set; }
         public decimal? ConsultationFee { get; set; }
     }
 }

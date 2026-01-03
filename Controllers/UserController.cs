@@ -156,5 +156,14 @@ namespace healthapp.Controllers
             var response = await _userRepository.VerifyEmailAsync(token);
             return StatusCode(response.StatusCode, response);
         }
+
+        [Authorize]
+        [HttpPost("verify-identity")]
+        public async Task<IActionResult> VerifyIdentity([FromBody] VerifyIdentityDto dto)
+        {
+            var userId = int.Parse(User.FindFirstValue("id")!);
+            var response = await _userRepository.VerifyIdentityAsync(userId, dto.Tc);
+            return StatusCode(response.StatusCode, response);
+        }
     }
 }

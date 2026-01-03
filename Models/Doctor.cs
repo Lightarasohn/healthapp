@@ -35,6 +35,14 @@ public partial class Doctor
 
     public bool Deleted { get; set; }
 
+    public string? Province { get; set; }
+
+    public string? District { get; set; }
+
+    public string? Neighborhood { get; set; }
+
+    public string? FullLocation { get; set; }
+
     public virtual ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
 
     public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();

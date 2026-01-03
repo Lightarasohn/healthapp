@@ -28,5 +28,6 @@ namespace healthapp.Interfaces
         Task<ApiResponse<object>> RemoveFavoriteDoctorAsync(int userId, string doctorId);
         Task<ApiResponse<IEnumerable<HealthHistory>>> GetHealthHistoryAsync(int userId);
         Task<ApiResponse<object>> ConfirmEmailChangeAsync(string token);
+        Task<ApiResponse<bool>> VerifyIdentityAsync(int userId, string tcNumber);
     }
 }

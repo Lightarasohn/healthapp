@@ -118,15 +118,27 @@ public partial class PostgresContext : DbContext
             entity.Property(e => e.Deleted)
                 .HasDefaultValue(false)
                 .HasColumnName("deleted");
+            entity.Property(e => e.District)
+                .HasMaxLength(255)
+                .HasColumnName("district");
             entity.Property(e => e.Experience)
                 .HasDefaultValue(0)
                 .HasColumnName("experience");
+            entity.Property(e => e.FullLocation)
+                .HasMaxLength(512)
+                .HasColumnName("full_location");
             entity.Property(e => e.Hospital)
                 .HasMaxLength(255)
                 .HasColumnName("hospital");
             entity.Property(e => e.Location)
                 .HasMaxLength(255)
                 .HasColumnName("location");
+            entity.Property(e => e.Neighborhood)
+                .HasMaxLength(255)
+                .HasColumnName("neighborhood");
+            entity.Property(e => e.Province)
+                .HasMaxLength(255)
+                .HasColumnName("province");
             entity.Property(e => e.Rating)
                 .HasPrecision(3, 2)
                 .HasDefaultValueSql("0")
@@ -280,6 +292,9 @@ public partial class PostgresContext : DbContext
             entity.Property(e => e.Role)
                 .HasMaxLength(50)
                 .HasColumnName("role");
+            entity.Property(e => e.Tc)
+                .HasMaxLength(11)
+                .HasColumnName("tc");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnType("timestamp without time zone")

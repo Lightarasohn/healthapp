@@ -43,6 +43,8 @@ public partial class User
 
     public bool Deleted { get; set; }
 
+    public string? Tc { get; set; }
+
     public virtual ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
 
     public virtual ICollection<Doctor> Doctors { get; set; } = new List<Doctor>();

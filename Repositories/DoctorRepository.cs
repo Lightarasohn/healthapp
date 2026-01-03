@@ -41,13 +41,22 @@ namespace healthapp.Repositories
         {
             var query = _context.Doctors
                 .Include(d => d.User)
+                .Include(d => d.SpecialityNavigation)
                 .AsQueryable();
 
             if (filter.Speciality.HasValue)
                 query = query.Where(d => d.Speciality == filter.Speciality);
 
-            if (!string.IsNullOrWhiteSpace(filter.Location))
-                query = query.Where(d => d.Location == filter.Location);
+            // --- YENİ FİLTRELER ---
+            if (!string.IsNullOrWhiteSpace(filter.Province))
+                query = query.Where(d => d.Province == filter.Province);
+
+            if (!string.IsNullOrWhiteSpace(filter.District))
+                query = query.Where(d => d.District == filter.District);
+                
+            if (!string.IsNullOrWhiteSpace(filter.Neighborhood))
+                query = query.Where(d => EF.Functions.ILike(d.Neighborhood!, $"%{filter.Neighborhood}%"));
+            // ---------------------
 
             if (filter.MinRating.HasValue)
                 query = query.Where(d => d.Rating >= filter.MinRating);
@@ -109,7 +118,6 @@ namespace healthapp.Repositories
             if (doctor == null) return new ApiResponse<Doctor>(404, "Doktor bulunamadı");
 
             doctor.Clocks = JsonSerializer.Serialize(dto.Clocks);
-            if (dto.Location != null) doctor.Location = dto.Location;
             if (dto.ConsultationFee != null) doctor.ConsultationFee = dto.ConsultationFee;
 
             await _context.SaveChangesAsync();
@@ -185,13 +193,41 @@ namespace healthapp.Repositories
             var doctor = await _context.Doctors.FirstOrDefaultAsync(d => d.UserId == userId);
             if (doctor == null) return new ApiResponse<Doctor>(404, "Doktor profili bulunamadı");
 
-            // Sadece gelen dolu verileri güncelle
             if (dto.Speciality.HasValue) doctor.Speciality = dto.Speciality;
             if (!string.IsNullOrEmpty(dto.Hospital)) doctor.Hospital = dto.Hospital;
             if (!string.IsNullOrEmpty(dto.About)) doctor.About = dto.About;
             if (dto.Experience.HasValue) doctor.Experience = dto.Experience.Value;
 
-            doctor.UpdatedAt = DateTime.UtcNow; // UpdatedAt alanını da güncelleyelim
+            // --- LOKASYON GÜNCELLEME MANTIĞI ---
+            bool locationChanged = false;
+
+            if (dto.Province != null) { doctor.Province = dto.Province; locationChanged = true; }
+            if (dto.District != null) { doctor.District = dto.District; locationChanged = true; }
+            if (dto.Neighborhood != null) { doctor.Neighborhood = dto.Neighborhood; locationChanged = true; }
+            if (dto.Location != null) { doctor.Location = dto.Location; locationChanged = true; }
+
+            if (locationChanged)
+            {
+                // Format: İstanbul/Bayrampaşa/Yıldırım (Mahallesi), Ekstra Tarif
+                var locParts = new List<string>();
+                if (!string.IsNullOrWhiteSpace(doctor.Province)) locParts.Add(doctor.Province);
+                if (!string.IsNullOrWhiteSpace(doctor.District)) locParts.Add(doctor.District);
+                if (!string.IsNullOrWhiteSpace(doctor.Neighborhood)) locParts.Add(doctor.Neighborhood);
+                
+                string mainLoc = string.Join("/", locParts);
+                
+                if (!string.IsNullOrWhiteSpace(doctor.Location))
+                {
+                    doctor.FullLocation = $"{mainLoc}, {doctor.Location}";
+                }
+                else
+                {
+                    doctor.FullLocation = mainLoc;
+                }
+            }
+            // -----------------------------------
+
+            doctor.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
             return new ApiResponse<Doctor>(200, "Profil bilgileri güncellendi", doctor);

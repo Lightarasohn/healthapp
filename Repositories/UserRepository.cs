@@ -1,6 +1,7 @@
 using healthapp.Context;
 using healthapp.DTOs;
 using healthapp.DTOs.UserDTOs;
+using healthapp.Helpers;
 using healthapp.Interfaces;
 using healthapp.Models;
 using Microsoft.EntityFrameworkCore;
@@ -81,6 +82,27 @@ namespace healthapp.Repositories
             var existingUser = await _context.Users.AnyAsync(u => u.Email == dto.Email);
             if (existingUser) return new ApiResponse<object>(400, "Bu email adresi zaten kayıtlı");
 
+            // --- TC DOĞRULAMA VE KONTROLÜ BAŞLANGIÇ ---
+            if (!string.IsNullOrEmpty(dto.Tc))
+            {
+                if (!TcValidator.Validate(dto.Tc))
+                {
+                    return new ApiResponse<object>(400, "Geçersiz TC Kimlik Numarası.");
+                }
+
+                var existingTc = await _context.Users.AnyAsync(u => u.Tc == dto.Tc);
+                if (existingTc)
+                {
+                    return new ApiResponse<object>(400, "Bu TC Kimlik Numarası ile kayıtlı bir kullanıcı zaten var.");
+                }
+            }
+            else
+            {
+                // TC Kimlik No zorunlu ise:
+                return new ApiResponse<object>(400, "TC Kimlik Numarası zorunludur.");
+            }
+            // --- TC DOĞRULAMA SONU ---
+
             if (dto.Role == "doctor" && string.IsNullOrEmpty(documentPath))
                 return new ApiResponse<object>(400, "Doktor hesabı için belge yüklemesi zorunludur");
 
@@ -90,6 +112,7 @@ namespace healthapp.Repositories
                 Email = dto.Email,
                 PasswordHash = _passwordService.HashPassword(dto.Password),
                 Role = dto.Role,
+                Tc = dto.Tc, // TC veritabanına kaydediliyor
                 IsVerified = false,
                 VerificationToken = Guid.NewGuid().ToString("N"),
                 IsDoctorApproved = false,
@@ -100,6 +123,7 @@ namespace healthapp.Repositories
             await _context.Users.AddAsync(user);
             await _context.SaveChangesAsync();
 
+            // ... Doktor tablosuna ekleme ve Email gönderme kısımları aynı ...
             if (user.Role == "doctor")
             {
                 var doctor = new Doctor
@@ -386,6 +410,20 @@ namespace healthapp.Repositories
                 await _context.SaveChangesAsync();
             }
             return new ApiResponse<object>(200, "Çıkış yapıldı.");
+        }
+
+        public async Task<ApiResponse<bool>> VerifyIdentityAsync(int userId, string tcNumber)
+        {
+            var user = await _context.Users.FindAsync(userId);
+
+            if (user == null)
+                return new ApiResponse<bool>(404, "Kullanıcı bulunamadı.");
+
+            // Kullanıcının kayıtlı TC'si ile girilen TC eşleşiyor mu?
+            if (user.Tc != tcNumber)
+                return new ApiResponse<bool>(400, "Girdiğiniz TC Kimlik Numarası sistemdeki ile uyuşmuyor.", false);
+
+            return new ApiResponse<bool>(200, "Kimlik doğrulandı.", true);
         }
     }
 }
