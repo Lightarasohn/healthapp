@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using System.Text;
 using System.Text.Json.Serialization;
 
@@ -57,7 +58,38 @@ builder.Services.AddControllers()
         // İsteğe bağlı: JSON çıktısını daha okunaklı yapmak için
         options.JsonSerializerOptions.WriteIndented = true; 
     });
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(option =>
+{
+    // Opsiyonel: API Başlığı ve Versiyonu
+    option.SwaggerDoc("v1", new OpenApiInfo { Title = "Health App API", Version = "v1" });
+
+    // 1. Security Definition: Swagger'a JWT kullanacağımızı tanımlıyoruz
+    option.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        In = ParameterLocation.Header,
+        Description = "Lütfen geçerli bir token giriniz",
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        BearerFormat = "JWT",
+        Scheme = "Bearer"
+    });
+
+    // 2. Security Requirement: Bu güvenliği tüm endpointlere uyguluyoruz
+    option.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type=ReferenceType.SecurityScheme,
+                    Id="Bearer"
+                }
+            },
+            new string[]{}
+        }
+    });
+});
 builder.Services.AddOpenApi();
 
 // --- EKLENEN KISIM: DEPENDENCY INJECTION KAYITLARI ---
@@ -104,14 +136,13 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseStaticFiles(); // Dosya indirme ve avatar gösterimi için gerekli olabilir (wwwroot veya Uploads klasörü için)
+app.UseStaticFiles();
 
-app.UseAuthentication(); // UseAuthorization'dan önce gelmeli!
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
-// Uygulama ayağa kalkarken Uploads klasörü yoksa oluştur
 var uploadPath = Path.Combine(Directory.GetCurrentDirectory(), "Uploads");
 if (!Directory.Exists(uploadPath))
 {

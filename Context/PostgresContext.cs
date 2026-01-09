@@ -29,7 +29,15 @@ public partial class PostgresContext : DbContext
     public virtual DbSet<User> Users { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        => optionsBuilder.UseNpgsql("Name=DefaultConnection");
+    {
+        /* TEST YAPILACAKSA BU KISIM AÇILACAK
+        if (!optionsBuilder.IsConfigured)
+        {
+            optionsBuilder.UseNpgsql("Name=DefaultConnection");
+        }
+        TEST YAPILMAYACAKSA AŞAĞIDAKİ KISIM AÇILACAK*/
+        optionsBuilder.UseNpgsql("Name=DefaultConnection");
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
