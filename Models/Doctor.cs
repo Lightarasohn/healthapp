@@ -45,6 +45,8 @@ public partial class Doctor
 
     public virtual ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
 
+    public virtual ICollection<HealthHistory> HealthHistories { get; set; } = new List<HealthHistory>();
+
     public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
 
     public virtual Speciality? SpecialityNavigation { get; set; }

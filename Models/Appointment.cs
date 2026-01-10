@@ -31,5 +31,7 @@ public partial class Appointment
 
     public virtual Doctor? Doctor { get; set; }
 
+    public virtual HealthHistory? HealthHistory { get; set; }
+
     public virtual User? Patient { get; set; }
 }

@@ -38,11 +38,14 @@ namespace healthapp.Controllers
         [HttpPost]
         public async Task<IActionResult> Create(CreateAppointmentDto dto)
         {
-            try {
+            try
+            {
                 var userId = int.Parse(User.FindFirstValue("id")!);
                 var response = await _repository.CreateAppointmentAsync(userId, dto);
                 return StatusCode(response.StatusCode, response);
-            } catch (Exception ex) {
+            }
+            catch (Exception ex)
+            {
                 return BadRequest(new ApiResponse<object>(500, ex.Message));
             }
         }
@@ -87,6 +90,14 @@ namespace healthapp.Controllers
             var userId = int.Parse(User.FindFirstValue("id")!);
             var response = await _repository.UpdateStatusAsync(userId, id, dto.Status);
             return StatusCode(response.StatusCode, response);
+        }
+        [HttpPost("{id}/complete")]
+        [Authorize(Roles = "doctor")]
+        public async Task<IActionResult> CompleteAppointment(int id, [FromBody] CompleteAppointmentDto dto)
+        {
+            var userId = int.Parse(User.FindFirst("id")?.Value!);
+            var result = await _repository.CompleteAppointmentAsync(userId, id, dto);
+            return StatusCode(result.StatusCode, result);
         }
     }
 }

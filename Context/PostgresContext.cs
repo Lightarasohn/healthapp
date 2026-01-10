@@ -29,15 +29,7 @@ public partial class PostgresContext : DbContext
     public virtual DbSet<User> Users { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        /* TEST YAPILACAKSA BU KISIM AÇILACAK
-        if (!optionsBuilder.IsConfigured)
-        {
-            optionsBuilder.UseNpgsql("Name=DefaultConnection");
-        }
-        TEST YAPILMAYACAKSA AŞAĞIDAKİ KISIM AÇILACAK*/
-        optionsBuilder.UseNpgsql("Name=DefaultConnection");
-    }
+        => optionsBuilder.UseNpgsql("Name=DefaultConnection");
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -181,7 +173,12 @@ public partial class PostgresContext : DbContext
 
             entity.ToTable("health_history");
 
+            entity.HasIndex(e => e.AppointmentId, "health_history_appointment_unique").IsUnique();
+
+            entity.HasIndex(e => e.AppointmentId, "idx_health_history_appointment_id");
+
             entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AppointmentId).HasColumnName("appointment_id");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnType("timestamp without time zone")
@@ -190,14 +187,25 @@ public partial class PostgresContext : DbContext
                 .HasDefaultValue(false)
                 .HasColumnName("deleted");
             entity.Property(e => e.Diagnosis).HasColumnName("diagnosis");
+            entity.Property(e => e.DoctorId).HasColumnName("doctor_id");
             entity.Property(e => e.Notes).HasColumnName("notes");
             entity.Property(e => e.PatientId).HasColumnName("patient_id");
             entity.Property(e => e.Treatment).HasColumnName("treatment");
 
+            entity.HasOne(d => d.Appointment).WithOne(p => p.HealthHistory)
+                .HasForeignKey<HealthHistory>(d => d.AppointmentId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("health_history_appointment_fkey");
+
+            entity.HasOne(d => d.Doctor).WithMany(p => p.HealthHistories)
+                .HasForeignKey(d => d.DoctorId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("health_history_doctor_fkey");
+
             entity.HasOne(d => d.Patient).WithMany(p => p.HealthHistories)
                 .HasForeignKey(d => d.PatientId)
                 .OnDelete(DeleteBehavior.Cascade)
-                .HasConstraintName("health_history_patient_id_fkey");
+                .HasConstraintName("health_history_patient_fkey");
         });
 
         modelBuilder.Entity<Review>(entity =>

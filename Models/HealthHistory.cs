@@ -19,5 +19,13 @@ public partial class HealthHistory
 
     public bool Deleted { get; set; }
 
+    public int? AppointmentId { get; set; }
+
+    public int? DoctorId { get; set; }
+
+    public virtual Appointment? Appointment { get; set; }
+
+    public virtual Doctor? Doctor { get; set; }
+
     public virtual User? Patient { get; set; }
 }
