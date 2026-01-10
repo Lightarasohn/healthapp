@@ -152,7 +152,7 @@ namespace healthapp.Repositories
                 Console.WriteLine("Email gönderme hatası: " + ex.Message);
             }
 
-            return new ApiResponse<object>(201, "Kayıt başarılı. Lütfen e-postanızı doğrulayın.", new { user.Id, user.Email });
+            return new ApiResponse<object>(201, "Kayıt başarılı. Lütfen e-postanızı doğrulayın.", new { user.Id, user.Email, user.VerificationToken });
         }
 
         public async Task<ApiResponse<object>> LoginAsync(LoginDto dto)
