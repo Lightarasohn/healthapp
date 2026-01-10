@@ -123,7 +123,8 @@ namespace healthapp.Repositories
                     // İptal edilmemiş tüm randevuları dikkate al (booked, completed vs.)
                     a.Status != "cancelled" &&
                     // Kesişim Formülü: (YeniBaşlangıç < EskiBitiş) VE (YeniBitiş > EskiBaşlangıç)
-                    (dto.Start < a.End && finalEnd > a.Start)
+                    dto.Start < a.End && finalEnd > a.Start &&
+                    dto.Start != a.Start && finalEnd != a.End
                 );
 
                 if (isOverlapping) return new ApiResponse<Appointment>(400, "Bu saat aralığında başka bir randevu mevcut.");
