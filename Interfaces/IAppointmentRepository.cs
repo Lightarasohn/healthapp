@@ -15,5 +15,6 @@ namespace healthapp.Interfaces
         Task<ApiResponse<IEnumerable<Appointment>>> GetAllAppointmentsAsync();
         Task<ApiResponse<Appointment>> UpdateStatusAsync(int userId, int id, string status);
         Task<ApiResponse<Appointment>> CompleteAppointmentAsync(int userId, int appointmentId, CompleteAppointmentDto dto);
+        Task<ApiResponse<IEnumerable<string>>> GetBookedSlotsAsync(int doctorId, DateOnly date);
     }
 }

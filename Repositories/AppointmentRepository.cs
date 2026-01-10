@@ -122,9 +122,7 @@ namespace healthapp.Repositories
                     a.Date == dto.Date &&
                     // İptal edilmemiş tüm randevuları dikkate al (booked, completed vs.)
                     a.Status != "cancelled" &&
-                    // Kesişim Formülü: (YeniBaşlangıç < EskiBitiş) VE (YeniBitiş > EskiBaşlangıç)
-                    dto.Start < a.End && finalEnd > a.Start &&
-                    dto.Start != a.Start && finalEnd != a.End
+                    dto.Start == a.Start && finalEnd == a.End
                 );
 
                 if (isOverlapping) return new ApiResponse<Appointment>(400, "Bu saat aralığında başka bir randevu mevcut.");
@@ -357,6 +355,19 @@ namespace healthapp.Repositories
                 await transaction.RollbackAsync();
                 return new ApiResponse<Appointment>(500, "İşlem sırasında hata oluştu: " + ex.Message);
             }
+        }
+        public async Task<ApiResponse<IEnumerable<string>>> GetBookedSlotsAsync(int doctorId, DateOnly date)
+        {
+            // İptal edilmemiş randevuların saatlerini çekiyoruz
+            var bookedSlots = await _context.Appointments
+                .Where(a => a.DoctorId == doctorId && a.Date == date && a.Status != "cancelled")
+                .Select(a => a.Start) // TimeOnly olarak çekiyoruz
+                .ToListAsync();
+
+            // Frontend'in beklediği formatta (HH:mm) string listesine çeviriyoruz
+            var formattedSlots = bookedSlots.Select(t => t.ToString("HH:mm"));
+
+            return new ApiResponse<IEnumerable<string>>(200, "Dolu saatler getirildi", formattedSlots);
         }
     }
 }

@@ -83,6 +83,19 @@ namespace healthapp.Controllers
             return Ok(response);
         }
 
+        [HttpGet("booked-slots")]
+        [AllowAnonymous] // Veya [Authorize] kullanabilirsin, duruma göre
+        public async Task<IActionResult> GetBookedSlots([FromQuery] BookedSlotsQueryDto bookedSlotsQueryDto)
+        {
+            if (!DateOnly.TryParse(bookedSlotsQueryDto.Date, out var parsedDate))
+            {
+                return BadRequest(new ApiResponse<object>(400, "Geçersiz tarih formatı."));
+            }
+
+            var response = await _repository.GetBookedSlotsAsync(bookedSlotsQueryDto.DoctorId, parsedDate);
+            return Ok(response);
+        }
+
         [HttpPatch("{id}/status")]
         [Authorize(Roles = "doctor")]
         public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateStatusDto dto)

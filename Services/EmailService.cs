@@ -22,9 +22,12 @@ namespace healthapp.Services
 
             using var client = new SmtpClient(host, port)
             {
-                Credentials = new NetworkCredential(emailUser, emailPass),
-                EnableSsl = true
+                EnableSsl = true,
+                DeliveryMethod = SmtpDeliveryMethod.Network,
+                UseDefaultCredentials = false
             };
+
+            client.Credentials = new NetworkCredential(emailUser, emailPass);
 
             var mailMessage = new MailMessage
             {
@@ -33,6 +36,7 @@ namespace healthapp.Services
                 Body = body,
                 IsBodyHtml = true
             };
+            
             mailMessage.To.Add(to);
 
             await client.SendMailAsync(mailMessage);
