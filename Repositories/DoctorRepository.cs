@@ -62,6 +62,12 @@ namespace healthapp.Repositories
             if (filter.MinRating.HasValue)
                 query = query.Where(d => d.Rating >= filter.MinRating);
 
+            if (filter.MaxPrice.HasValue)
+                query = query.Where(d => d.ConsultationFee <= filter.MaxPrice);
+
+            if (filter.MinPrice.HasValue)
+                query = query.Where(d => d.ConsultationFee >= filter.MinPrice);
+
             if (!string.IsNullOrWhiteSpace(filter.Search))
             {
                 query = query.Where(d =>
