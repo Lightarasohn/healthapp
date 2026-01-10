@@ -15,6 +15,7 @@ namespace healthapp.Interfaces
         Task<ApiResponse<bool>> AddHealthHistoryAsync(AddHealthHistoryDto dto);
         Task<ApiResponse<Doctor>> GetMyDoctorProfileAsync(int userId);
         Task<ApiResponse<bool>> AddUnavailableDateAsync(int userId, UnavailableDateDto dto);
+        Task<ApiResponse<bool>> CancelUnavailableDateAsync(int userId, string dateKey);
         Task<ApiResponse<bool>> DeleteDoctorAsync(int id);
         Task<ApiResponse<Doctor>> UpdateDoctorInfoAsync(int userId, UpdateDoctorInfoDto dto);
     }

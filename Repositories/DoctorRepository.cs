@@ -29,7 +29,8 @@ namespace healthapp.Repositories
                 Speciality = dto.Speciality,
                 Location = dto.Location,
                 Clocks = JsonSerializer.Serialize(dto.Clocks),
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                UnavailableDates = { }
             };
 
             await _context.Doctors.AddAsync(doctor);
@@ -53,7 +54,7 @@ namespace healthapp.Repositories
 
             if (!string.IsNullOrWhiteSpace(filter.District))
                 query = query.Where(d => d.District == filter.District);
-                
+
             if (!string.IsNullOrWhiteSpace(filter.Neighborhood))
                 query = query.Where(d => EF.Functions.ILike(d.Neighborhood!, $"%{filter.Neighborhood}%"));
             // ---------------------
@@ -167,16 +168,66 @@ namespace healthapp.Repositories
             var doctor = await _context.Doctors.FirstOrDefaultAsync(d => d.UserId == userId);
             if (doctor == null) return new ApiResponse<bool>(404, "Doktor bulunamadı");
 
-            // Mevcut UnavailableDates JSON string'ini listeye çevir, ekle ve geri serileştir
-            var dates = string.IsNullOrEmpty(doctor.UnavailableDates)
-                ? new List<UnavailableDateDto>()
-                : JsonSerializer.Deserialize<List<UnavailableDateDto>>(doctor.UnavailableDates);
+            // Mevcut JSON'ı Dictionary olarak deserialize et
+            var datesDict = string.IsNullOrEmpty(doctor.UnavailableDates) || doctor.UnavailableDates == "[]"
+                ? new Dictionary<string, UnavailableDateDetail>()
+                : JsonSerializer.Deserialize<Dictionary<string, UnavailableDateDetail>>(doctor.UnavailableDates);
 
-            dates!.Add(dto);
-            doctor.UnavailableDates = JsonSerializer.Serialize(dates);
+            if (datesDict == null) datesDict = new Dictionary<string, UnavailableDateDetail>();
 
+            // Benzersiz bir Key oluştur (Örn: leave_638123123)
+            // DateTime.Ticks kullanarak sıralı ve benzersiz olmasını sağlıyoruz.
+            string uniqueKey = $"leave_{DateTime.UtcNow.Ticks}";
+
+            var newDateDetail = new UnavailableDateDetail
+            {
+                StartDate = dto.StartDate,
+                EndDate = dto.EndDate,
+                Reason = dto.Reason,
+                IsDeleted = false
+            };
+
+            datesDict.Add(uniqueKey, newDateDetail);
+
+            doctor.UnavailableDates = JsonSerializer.Serialize(datesDict);
             await _context.SaveChangesAsync();
             return new ApiResponse<bool>(200, "İzin eklendi", true);
+        }
+
+        public async Task<ApiResponse<bool>> CancelUnavailableDateAsync(int userId, string dateKey)
+        {
+            var doctor = await _context.Doctors.FirstOrDefaultAsync(d => d.UserId == userId);
+            if (doctor == null) return new ApiResponse<bool>(404, "Doktor bulunamadı");
+
+            var datesDict = string.IsNullOrEmpty(doctor.UnavailableDates)
+                ? new Dictionary<string, UnavailableDateDetail>()
+                : JsonSerializer.Deserialize<Dictionary<string, UnavailableDateDetail>>(doctor.UnavailableDates);
+
+            if (datesDict == null || !datesDict.ContainsKey(dateKey))
+                return new ApiResponse<bool>(404, "Belirtilen izin kaydı bulunamadı");
+
+            var targetDate = datesDict[dateKey];
+
+            // VALIDATION: Bitiş tarihi geçmişse silinemez
+            if (targetDate.EndDate < DateTime.UtcNow)
+            {
+                return new ApiResponse<bool>(400, "Geçmiş tarihli bir izin iptal edilemez.");
+            }
+
+            if (targetDate.IsDeleted)
+            {
+                return new ApiResponse<bool>(400, "Bu izin zaten iptal edilmiş.");
+            }
+
+            // Soft Delete işlemi
+            targetDate.IsDeleted = true;
+
+            // Objeyi güncelle ve kaydet
+            datesDict[dateKey] = targetDate;
+            doctor.UnavailableDates = JsonSerializer.Serialize(datesDict);
+
+            await _context.SaveChangesAsync();
+            return new ApiResponse<bool>(200, "İzin iptal edildi", true);
         }
 
         public async Task<ApiResponse<bool>> DeleteDoctorAsync(int id)
@@ -213,9 +264,9 @@ namespace healthapp.Repositories
                 if (!string.IsNullOrWhiteSpace(doctor.Province)) locParts.Add(doctor.Province);
                 if (!string.IsNullOrWhiteSpace(doctor.District)) locParts.Add(doctor.District);
                 if (!string.IsNullOrWhiteSpace(doctor.Neighborhood)) locParts.Add(doctor.Neighborhood);
-                
+
                 string mainLoc = string.Join("/", locParts);
-                
+
                 if (!string.IsNullOrWhiteSpace(doctor.Location))
                 {
                     doctor.FullLocation = $"{mainLoc}, {doctor.Location}";

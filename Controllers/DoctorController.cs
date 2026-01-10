@@ -90,6 +90,15 @@ namespace healthapp.Controllers
             return Ok(response);
         }
 
+        [Authorize(Roles = "doctor")]
+        [HttpDelete("me/unavailable/{key}")]
+        public async Task<IActionResult> CancelUnavailableDate(string key)
+        {
+            var userId = int.Parse(User.FindFirstValue("id")!);
+            var response = await _doctorRepository.CancelUnavailableDateAsync(userId, key);
+            return StatusCode(response.StatusCode, response);
+        }
+
         [HttpGet("{id}/reviews")]
         public async Task<IActionResult> GetReviews(int id)
         {

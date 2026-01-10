@@ -324,10 +324,11 @@ namespace healthapp.Repositories
 
         public async Task<ApiResponse<IEnumerable<Doctor>>> GetFavoriteDoctorsAsync(int userId)
         {
-            // DÜZELTİLDİ: DoctorsNavigation include edildi
             var user = await _context.Users
                 .Include(u => u.DoctorsNavigation)
-                .ThenInclude(d => d.User)
+                    .ThenInclude(d => d.User) // Doktorun kullanıcı bilgileri (Ad, Avatar vs.)
+                .Include(u => u.DoctorsNavigation)
+                    .ThenInclude(d => d.SpecialityNavigation) // <-- EKLENEN KISIM: Uzmanlık ismini çekmek için
                 .FirstOrDefaultAsync(u => u.Id == userId);
 
             return new ApiResponse<IEnumerable<Doctor>>(200, "Favoriler getirildi", user?.DoctorsNavigation ?? new List<Doctor>());
