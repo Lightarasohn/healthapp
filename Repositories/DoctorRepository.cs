@@ -41,6 +41,7 @@ namespace healthapp.Repositories
         public async Task<ApiResponse<object>> GetDoctorsBySpecialityAsync(DoctorFilterDto filter)
         {
             var query = _context.Doctors
+                .AsNoTracking()
                 .Include(d => d.User)
                 .Include(d => d.SpecialityNavigation)
                 .AsQueryable();
@@ -109,6 +110,7 @@ namespace healthapp.Repositories
         public async Task<ApiResponse<object>> GetDoctorReviewsAsync(int doctorId)
         {
             var reviews = await _context.Reviews
+                .AsNoTracking()
                 .Where(r => r.DoctorId == doctorId && !r.Deleted)
                 .OrderByDescending(r => r.Rating)
                 .ToListAsync();
@@ -157,6 +159,7 @@ namespace healthapp.Repositories
         {
             // Review'lara göre en yüksek rating'li doktorları sırala
             var doctors = await _context.Doctors
+                .AsNoTracking()
                 .OrderByDescending(d => d.Rating)
                 .Take(10)
                 .ToListAsync();

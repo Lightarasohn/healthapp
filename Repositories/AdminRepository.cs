@@ -76,10 +76,10 @@ namespace healthapp.Repositories
         }
 
         public async Task<ApiResponse<IEnumerable<User>>> GetAllUsersAsync() => 
-            new ApiResponse<IEnumerable<User>>(200, "Liste", await _context.Users.ToListAsync());
+            new ApiResponse<IEnumerable<User>>(200, "Liste", await _context.Users.AsNoTracking().ToListAsync());
 
         public async Task<ApiResponse<IEnumerable<User>>> GetUsersByRoleAsync(string role) => 
-            new ApiResponse<IEnumerable<User>>(200, "Liste", await _context.Users.Where(u => u.Role == role).ToListAsync());
+            new ApiResponse<IEnumerable<User>>(200, "Liste", await _context.Users.AsNoTracking().Where(u => u.Role == role).ToListAsync());
 
         public async Task<ApiResponse<Doctor>> ApproveDoctorAsync(int userId)
         {
@@ -91,7 +91,7 @@ namespace healthapp.Repositories
         }
 
         public async Task<ApiResponse<IEnumerable<Doctor>>> GetPendingDoctorsAsync() =>
-            new ApiResponse<IEnumerable<Doctor>>(200, "Bekleyenler", await _context.Doctors.Include(d => d.User).Where(d => d.User!.Role == "doctor" && d.User.IsDoctorApproved == false).ToListAsync());
+            new ApiResponse<IEnumerable<Doctor>>(200, "Bekleyenler", await _context.Doctors.AsNoTracking().Include(d => d.User).Where(d => d.User!.Role == "doctor" && d.User.IsDoctorApproved == false).ToListAsync());
 
         public async Task<ApiResponse<bool>> DeleteUserAsync(int id)
         {

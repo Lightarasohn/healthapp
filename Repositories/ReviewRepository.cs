@@ -57,6 +57,6 @@ namespace healthapp.Repositories
         }
 
         public async Task<ApiResponse<IEnumerable<Review>>> GetReviewsByDoctorIdAsync(int doctorId) =>
-            new ApiResponse<IEnumerable<Review>>(200, "Liste", await _context.Reviews.Where(r => r.DoctorId == doctorId).Include(r => r.Patient).OrderByDescending(r => r.CreatedAt).ToListAsync());
+            new ApiResponse<IEnumerable<Review>>(200, "Liste", await _context.Reviews.AsNoTracking().Where(r => r.DoctorId == doctorId).Include(r => r.Patient).OrderByDescending(r => r.CreatedAt).ToListAsync());
     }
 }

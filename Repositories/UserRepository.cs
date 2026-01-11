@@ -283,6 +283,7 @@ namespace healthapp.Repositories
         public async Task<ApiResponse<IEnumerable<HealthHistory>>> GetHealthHistoryAsync(int userId)
         {
             var history = await _context.HealthHistories
+                .AsNoTracking()
                 .Where(h => h.PatientId == userId && !h.Deleted)
                 .ToListAsync();
             return new ApiResponse<IEnumerable<HealthHistory>>(200, "Geçmiş getirildi", history);
@@ -325,6 +326,7 @@ namespace healthapp.Repositories
         public async Task<ApiResponse<IEnumerable<Doctor>>> GetFavoriteDoctorsAsync(int userId)
         {
             var user = await _context.Users
+                .AsNoTracking()
                 .Include(u => u.DoctorsNavigation)
                     .ThenInclude(d => d.User) // Doktorun kullanıcı bilgileri (Ad, Avatar vs.)
                 .Include(u => u.DoctorsNavigation)

@@ -18,7 +18,7 @@ namespace healthapp.Repositories
 
         public async Task<ApiResponse<IEnumerable<Speciality>>> GetAllSpecialitiesAsync()
         {
-            var list = await _context.Specialities.OrderBy(x => x.Name).ToListAsync();
+            var list = await _context.Specialities.OrderBy(x => x.Name).AsNoTracking().ToListAsync();
             return new ApiResponse<IEnumerable<Speciality>>(200, "Uzmanlık alanları listelendi", list);
         }
 

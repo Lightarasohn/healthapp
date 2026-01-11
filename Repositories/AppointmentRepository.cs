@@ -21,6 +21,7 @@ namespace healthapp.Repositories
         public async Task<ApiResponse<IEnumerable<Appointment>>> GetAllAppointmentsAsync()
         {
             var list = await _context.Appointments
+                .AsNoTracking()
                 .Include(a => a.Doctor).ThenInclude(d => d!.User)
                 .Include(a => a.Patient)
                 .OrderByDescending(a => a.Date)
@@ -256,6 +257,7 @@ namespace healthapp.Repositories
             if (doctor == null) return new ApiResponse<IEnumerable<Appointment>>(404, "Doktor bulunamadı.");
 
             var list = await _context.Appointments
+                .AsNoTracking()
                 .Where(a => a.DoctorId == doctor.Id && (a.Status == "booked" || a.Status == "completed"))
                 .Include(a => a.Patient)
                 .Include(a => a.HealthHistory)
@@ -268,6 +270,7 @@ namespace healthapp.Repositories
         public async Task<ApiResponse<IEnumerable<Appointment>>> GetPatientAppointmentsAsync(int patientId)
         {
             var list = await _context.Appointments
+                .AsNoTracking()
                 .Where(a => a.PatientId == patientId)
                 .Include(a => a.Doctor).ThenInclude(d => d!.User)
                 .Include(a => a.HealthHistory) // <-- EKLENDİ
@@ -360,6 +363,7 @@ namespace healthapp.Repositories
         {
             // İptal edilmemiş randevuların saatlerini çekiyoruz
             var bookedSlots = await _context.Appointments
+                .AsNoTracking()
                 .Where(a => a.DoctorId == doctorId && a.Date == date && a.Status != "cancelled")
                 .Select(a => a.Start) // TimeOnly olarak çekiyoruz
                 .ToListAsync();
