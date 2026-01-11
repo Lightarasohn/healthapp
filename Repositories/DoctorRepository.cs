@@ -46,10 +46,10 @@ namespace healthapp.Repositories
                 .Include(d => d.SpecialityNavigation)
                 .AsQueryable();
 
+            // --- FİLTRELER ---
             if (filter.Speciality.HasValue)
                 query = query.Where(d => d.Speciality == filter.Speciality);
 
-            // --- YENİ FİLTRELER ---
             if (!string.IsNullOrWhiteSpace(filter.Province))
                 query = query.Where(d => d.Province == filter.Province);
 
@@ -58,7 +58,6 @@ namespace healthapp.Repositories
 
             if (!string.IsNullOrWhiteSpace(filter.Neighborhood))
                 query = query.Where(d => EF.Functions.ILike(d.Neighborhood!, $"%{filter.Neighborhood}%"));
-            // ---------------------
 
             if (filter.MinRating.HasValue)
                 query = query.Where(d => d.Rating >= filter.MinRating);
@@ -80,11 +79,32 @@ namespace healthapp.Repositories
                 );
             }
 
-            filter.Sort = filter.Sort?.ToLower();
-            query = filter.Sort == "desc"
-                ? query.OrderByDescending(d => d.User!.Name)
-                : query.OrderBy(d => d.User!.Name);
+            // --- SIRALAMA (GÜNCELLENDİ) ---
+            // Frontend'den gelen değerler: price_asc, price_desc, rating_asc, rating_desc
 
+            filter.Sort = filter.Sort?.ToLower();
+
+            switch (filter.Sort)
+            {
+                case "price_asc":
+                    query = query.OrderBy(d => d.ConsultationFee);
+                    break;
+                case "price_desc":
+                    query = query.OrderByDescending(d => d.ConsultationFee);
+                    break;
+                case "rating_asc":
+                    query = query.OrderBy(d => d.Rating);
+                    break;
+                case "rating_desc":
+                    query = query.OrderByDescending(d => d.Rating);
+                    break;
+                default:
+                    // Varsayılan sıralama: İsim A-Z
+                    query = query.OrderBy(d => d.User!.Name);
+                    break;
+            }
+
+            // --- SAYFALAMA ---
             var page = filter.Page < 1 ? 1 : filter.Page;
             var limit = filter.Limit < 1 ? 12 : filter.Limit;
 
