@@ -155,7 +155,7 @@ namespace healthapp.Repositories
                     {
                         var subject = "Randevunuz Oluşturuldu - HealthApp";
                         var body = $@"
-                    <h3>Randevu Onayı</h3>
+                    <h3>Randevunuz Oluşturuldu</h3>
                     <p>Sayın <b>{patient.Name}</b>,</p>
                     <p>Randevunuz başarıyla oluşturulmuştur. Detaylar aşağıdadır:</p>
                     <ul>
@@ -227,17 +227,18 @@ namespace healthapp.Repositories
             {
                 if (appointment.Patient != null && !string.IsNullOrEmpty(appointment.Patient.Email))
                 {
+                    var canceller = role == "admin" ? "Yönetici" : "Doktor";
                     var subject = "Randevu İptali - HealthApp";
                     var body = $@"
                         <h3>Randevunuz İptal Edildi</h3>
                         <p>Sayın <b>{appointment.Patient.Name}</b>,</p>
-                        <p>Aşağıdaki randevunuz iptal edilmiştir:</p>
+                        <p>Aşağıdaki randevunuz {canceller} tarafından iptal edilmiştir:</p>
                         <ul>
                             <li><b>Doktor:</b> {appointment.Doctor?.User?.Name}</li>
                             <li><b>Tarih:</b> {appointment.Date:dd.MM.yyyy}</li>
                             <li><b>Saat:</b> {appointment.Start}</li>
                         </ul>
-                        <p>Yeni bir randevu almak için sistemimizi ziyaret edebilirsiniz.</p>";
+                        <p>Yaşattığımız rahatsızlıktan dolayı özür dileriz. Yeni bir randevu almak için sistemimizi ziyaret edebilirsiniz.</p>";
 
                     await _emailService.SendEmailAsync(appointment.Patient.Email, subject, body);
                 }

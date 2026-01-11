@@ -368,7 +368,7 @@ namespace healthapp.Repositories
                 <h3>Şifre Sıfırlama</h3>
                 <p>Şifrenizi sıfırlamak için aşağıdaki linke tıklayın:</p>
                 <a href='{resetUrl}'>Şifremi Sıfırla</a>
-                <p>Link 1 saat geçerlidir.</p>";
+                <p>1 saat geçerlidir.</p>";
 
             try
             {
