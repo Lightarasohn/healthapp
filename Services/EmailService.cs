@@ -17,7 +17,7 @@ namespace healthapp.Services
         {
             var emailUser = _config["EMAIL_USER"];
             var emailPass = _config["EMAIL_PASS"];
-            var host = "smtp.gmail.com"; // veya env'den alınabilir
+            var host = "smtp.gmail.com"; 
             var port = 587;
 
             using var client = new SmtpClient(host, port)

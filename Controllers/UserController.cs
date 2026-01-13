@@ -37,7 +37,7 @@ namespace healthapp.Controllers
         }
 
         [Authorize]
-        [HttpDelete("me")] // Delete Account
+        [HttpDelete("me")]
         public async Task<IActionResult> DeleteAccount()
         {
             var userId = int.Parse(User.FindFirstValue("id")!);

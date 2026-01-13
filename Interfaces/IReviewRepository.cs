@@ -8,7 +8,7 @@ namespace healthapp.Interfaces
     {
         Task<ApiResponse<Review>> AddReviewAsync(int patientId, CreateReviewDto dto);
         Task<ApiResponse<IEnumerable<Review>>> GetReviewsByDoctorIdAsync(int doctorId);
-        Task<ApiResponse<bool>> DeleteReviewAsync(int userId, string role, int reviewId); // EKLENDI (Interface'de yoktu)
-        Task<ApiResponse<Review>> UpdateReviewAsync(int userId, int reviewId, UpdateReviewDto dto); // EKLENDI
+        Task<ApiResponse<bool>> DeleteReviewAsync(int userId, string role, int reviewId); 
+        Task<ApiResponse<Review>> UpdateReviewAsync(int userId, int reviewId, UpdateReviewDto dto);
     }
 }

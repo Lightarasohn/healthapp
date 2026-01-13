@@ -84,7 +84,7 @@ namespace healthapp.Controllers
         }
 
         [HttpGet("booked-slots")]
-        [AllowAnonymous] // Veya [Authorize] kullanabilirsin, duruma göre
+        [AllowAnonymous]
         public async Task<IActionResult> GetBookedSlots([FromQuery] BookedSlotsQueryDto bookedSlotsQueryDto)
         {
             if (!DateOnly.TryParse(bookedSlotsQueryDto.Date, out var parsedDate))

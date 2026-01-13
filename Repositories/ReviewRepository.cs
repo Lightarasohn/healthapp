@@ -13,7 +13,7 @@ namespace healthapp.Repositories
 
         public ReviewRepository(PostgresContext context) => _context = context;
 
-        // --- YENİ EKLENEN METOTLAR ---
+
         public async Task<ApiResponse<Review>> UpdateReviewAsync(int userId, int reviewId, UpdateReviewDto dto)
         {
             var review = await _context.Reviews.FindAsync(reviewId);
@@ -22,7 +22,7 @@ namespace healthapp.Repositories
 
             review.Rating = dto.Rating;
             if (dto.Comment != null) review.Comment = dto.Comment;
-            
+
             await _context.SaveChangesAsync();
             return new ApiResponse<Review>(200, "Yorum güncellendi", review);
         }
@@ -32,7 +32,7 @@ namespace healthapp.Repositories
             var review = await _context.Reviews.FindAsync(reviewId);
             if (review == null) return new ApiResponse<bool>(404, "Bulunamadı");
 
-            // Admin veya yorum sahibi silebilir
+
             if (role != "admin" && review.PatientId != userId)
                 return new ApiResponse<bool>(403, "Yetkisiz");
 
@@ -41,7 +41,7 @@ namespace healthapp.Repositories
             return new ApiResponse<bool>(200, "Silindi", true);
         }
 
-        // --- MEVCUT METOTLAR ---
+
         public async Task<ApiResponse<Review>> AddReviewAsync(int patientId, CreateReviewDto dto)
         {
             if (await _context.Reviews.AnyAsync(r => r.DoctorId == dto.DoctorId && r.PatientId == patientId && !r.Deleted))

@@ -16,8 +16,6 @@ namespace healthapp.Controllers
             _specialityRepository = specialityRepository;
         }
 
-        // Herkes uzmanlık alanlarını görebilir (Giriş yapmadan da görülebilir olması yaygındır)
-        // Eğer giriş zorunluysa [Authorize] ekleyebilirsin. Şimdilik AllowAnonymous bırakıyorum veya boş geçiyorum.
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
@@ -32,7 +30,6 @@ namespace healthapp.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
-        // Ekleme, Silme ve Güncelleme işlemlerini sadece ADMIN yapabilir
         [Authorize(Roles = "admin")]
         [HttpPost]
         public async Task<IActionResult> Add([FromBody] CreateSpecialityDto dto)

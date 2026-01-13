@@ -29,7 +29,10 @@ public partial class PostgresContext : DbContext
     public virtual DbSet<User> Users { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        => optionsBuilder.UseNpgsql("Name=DefaultConnection");
+    {
+        // if(!optionsBuilder.IsConfigured)
+            optionsBuilder.UseNpgsql("Name=DefaultConnection");
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -336,6 +339,13 @@ public partial class PostgresContext : DbContext
                         j.IndexerProperty<int>("DoctorId").HasColumnName("doctor_id");
                     });
         });
+
+        modelBuilder.Entity<User>().HasQueryFilter(x => !x.Deleted);
+        modelBuilder.Entity<Doctor>().HasQueryFilter(x => !x.Deleted);
+        modelBuilder.Entity<Appointment>().HasQueryFilter(x => !x.Deleted);
+        modelBuilder.Entity<Review>().HasQueryFilter(x => !x.Deleted);
+        modelBuilder.Entity<HealthHistory>().HasQueryFilter(x => !x.Deleted);
+
         modelBuilder.HasSequence<int>("seq_schema_version", "graphql").IsCyclic();
 
         OnModelCreatingPartial(modelBuilder);

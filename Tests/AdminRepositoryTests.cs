@@ -31,12 +31,12 @@ namespace healthapp.Tests
             return new AdminRepository(context, _mockPasswordService.Object);
         }
 
-        // --- CreateAdminAsync Testleri ---
+
 
         [Fact]
         public async Task CreateAdminAsync_ShouldReturn201_WhenEmailIsUnique()
         {
-            // Arrange
+
             using var context = new PostgresContext(_dbOptions);
             var repo = CreateRepository(context);
 
@@ -49,10 +49,10 @@ namespace healthapp.Tests
 
             _mockPasswordService.Setup(p => p.HashPassword("SecretPassword123")).Returns("hashed_secret");
 
-            // Act
+
             var result = await repo.CreateAdminAsync(dto);
 
-            // Assert
+
             Assert.Equal(201, result.StatusCode);
             Assert.Equal("Admin oluşturuldu", result.Message);
 
@@ -66,10 +66,10 @@ namespace healthapp.Tests
         [Fact]
         public async Task CreateAdminAsync_ShouldReturn400_WhenEmailAlreadyExists()
         {
-            // Arrange
+
             using var context = new PostgresContext(_dbOptions);
-            
-            // Mevcut kullanıcıyı ekle
+
+
             context.Users.Add(new User
             {
                 Name = "Existing User",
@@ -85,27 +85,27 @@ namespace healthapp.Tests
             var dto = new CreateAdminDto
             {
                 Name = "New Admin",
-                Email = "admin@healthapp.com", // Çakışan email
+                Email = "admin@healthapp.com",
                 Password = "123"
             };
 
-            // Act
+
             var result = await repo.CreateAdminAsync(dto);
 
-            // Assert
+
             Assert.Equal(400, result.StatusCode);
             Assert.Contains("Email kayıtlı", result.Message);
         }
 
-        // --- UpdateUserRoleAsync Testleri ---
+
 
         [Fact]
         public async Task UpdateUserRoleAsync_ShouldReturn200_AndAddDoctorRecord_WhenRoleIsDoctor()
         {
-            // Arrange
+
             using var context = new PostgresContext(_dbOptions);
-            
-            // Normal bir hasta kullanıcısı ekle
+
+
             var user = new User
             {
                 Id = 1,
@@ -120,44 +120,44 @@ namespace healthapp.Tests
 
             var repo = CreateRepository(context);
 
-            // Act - Rolü 'doctor' yapıyoruz
+
             var result = await repo.UpdateUserRoleAsync(1, "doctor");
 
-            // Assert
+
             Assert.Equal(200, result.StatusCode);
-            
+
             var updatedUser = await context.Users.FindAsync(1);
             Assert.Equal("doctor", updatedUser!.Role);
 
-            // Doctor tablosuna otomatik kayıt eklendi mi kontrol et
+
             var doctorRecord = await context.Doctors.FirstOrDefaultAsync(d => d.UserId == 1);
             Assert.NotNull(doctorRecord);
-            Assert.Equal(1, doctorRecord.Speciality); // Default speciality ID
+            Assert.Equal(1, doctorRecord.Speciality);
         }
 
         [Fact]
         public async Task UpdateUserRoleAsync_ShouldReturn404_WhenUserNotFound()
         {
-            // Arrange
+
             using var context = new PostgresContext(_dbOptions);
             var repo = CreateRepository(context);
 
-            // Act
+
             var result = await repo.UpdateUserRoleAsync(999, "admin");
 
-            // Assert
+
             Assert.Equal(404, result.StatusCode);
             Assert.Contains("bulunamadı", result.Message);
         }
 
-        // --- ApproveDoctorAsync Testleri ---
+
 
         [Fact]
         public async Task ApproveDoctorAsync_ShouldReturn200_AndSetApprovedTrue()
         {
-            // Arrange
+
             using var context = new PostgresContext(_dbOptions);
-            
+
             var user = new User
             {
                 Id = 1,
@@ -166,19 +166,19 @@ namespace healthapp.Tests
                 PasswordHash = "hash",
                 Role = "doctor",
                 Tc = "33333333333",
-                IsDoctorApproved = false // Başlangıçta onaysız
+                IsDoctorApproved = false
             };
             context.Users.Add(user);
             await context.SaveChangesAsync();
 
             var repo = CreateRepository(context);
 
-            // Act
+
             var result = await repo.ApproveDoctorAsync(1);
 
-            // Assert
+
             Assert.Equal(200, result.StatusCode);
-            
+
             var updatedUser = await context.Users.FindAsync(1);
             Assert.True(updatedUser!.IsDoctorApproved);
         }
@@ -186,26 +186,26 @@ namespace healthapp.Tests
         [Fact]
         public async Task ApproveDoctorAsync_ShouldReturn404_WhenUserNotFound()
         {
-            // Arrange
+
             using var context = new PostgresContext(_dbOptions);
             var repo = CreateRepository(context);
 
-            // Act
+
             var result = await repo.ApproveDoctorAsync(999);
 
-            // Assert
+
             Assert.Equal(404, result.StatusCode);
             Assert.Contains("Kullanıcı yok", result.Message);
         }
 
-        // --- DeleteUserAsync Testleri ---
+
 
         [Fact]
         public async Task DeleteUserAsync_ShouldReturn200_AndRemoveUser()
         {
-            // Arrange
+
             using var context = new PostgresContext(_dbOptions);
-            
+
             var user = new User
             {
                 Id = 1,
@@ -220,14 +220,14 @@ namespace healthapp.Tests
 
             var repo = CreateRepository(context);
 
-            // Act
+
             var result = await repo.DeleteUserAsync(1);
 
-            // Assert
+
             Assert.Equal(200, result.StatusCode);
             Assert.True(result.Data);
 
-            // Veritabanından gerçekten silindi mi?
+
             var deletedUser = await context.Users.FindAsync(1);
             Assert.Null(deletedUser);
         }
@@ -235,16 +235,15 @@ namespace healthapp.Tests
         [Fact]
         public async Task DeleteUserAsync_ShouldReturn404_WhenUserNotFound()
         {
-            // Arrange
+
             using var context = new PostgresContext(_dbOptions);
             var repo = CreateRepository(context);
 
-            // Act
             var result = await repo.DeleteUserAsync(999);
 
-            // Assert
+
             Assert.Equal(404, result.StatusCode);
-            Assert.False(result.Data); // Başarısız olduğu için false veya null dönebilir, ApiResponse yapısına göre değişir ama Data false gelir
+            Assert.False(result.Data);
         }
     }
 }

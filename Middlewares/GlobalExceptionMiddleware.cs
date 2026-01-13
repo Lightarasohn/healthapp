@@ -35,7 +35,7 @@ namespace healthapp.Middlewares
 
             var response = new ApiResponse<object>(500, "Sunucu kaynaklı bir hata oluştu.", exception.Message);
             
-            // Production ortamında exception.Message gizlenebilir.
+            
             var json = JsonSerializer.Serialize(response);
             return context.Response.WriteAsync(json);
         }

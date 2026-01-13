@@ -92,12 +92,11 @@ builder.Services.AddSwaggerGen(option =>
 });
 builder.Services.AddOpenApi();
 
-// --- EKLENEN KISIM: DEPENDENCY INJECTION KAYITLARI ---
 
 // Services
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
-builder.Services.AddTransient<IEmailService, EmailService>(); // Email servisi stateless olduğu için Transient uygundur
+builder.Services.AddTransient<IEmailService, EmailService>();
 
 // Repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -107,10 +106,7 @@ builder.Services.AddScoped<IReviewRepository, ReviewRepository>();
 builder.Services.AddScoped<IAdminRepository, AdminRepository>();
 builder.Services.AddScoped<ISpecialityRepository, SpecialityRepository>();
 
-// Background Services (Cron Job Muadili)
-builder.Services.AddHostedService<AppointmentReminderService>();
-
-// -----------------------------------------------------
+//builder.Services.AddHostedService<AppointmentReminderService>();
 
 var app = builder.Build();
 

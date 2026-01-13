@@ -9,6 +9,6 @@ namespace healthapp.DTOs.DoctorDTOs
     {
         public int? Speciality { get; set; } = null!;
         public string? Location { get; set; }
-        public object? Clocks { get; set; } // JSON formatında
+        public object? Clocks { get; set; }
     }
 }

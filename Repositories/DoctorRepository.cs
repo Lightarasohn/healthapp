@@ -46,7 +46,9 @@ namespace healthapp.Repositories
                 .Include(d => d.SpecialityNavigation)
                 .AsQueryable();
 
-            // --- FİLTRELER ---
+            query = query.Where(d => d.User!.IsDoctorApproved == true);
+
+
             if (filter.Speciality.HasValue)
                 query = query.Where(d => d.Speciality == filter.Speciality);
 
@@ -79,8 +81,7 @@ namespace healthapp.Repositories
                 );
             }
 
-            // --- SIRALAMA (GÜNCELLENDİ) ---
-            // Frontend'den gelen değerler: price_asc, price_desc, rating_asc, rating_desc
+
 
             filter.Sort = filter.Sort?.ToLower();
 
@@ -99,12 +100,12 @@ namespace healthapp.Repositories
                     query = query.OrderByDescending(d => d.Rating);
                     break;
                 default:
-                    // Varsayılan sıralama: İsim A-Z
+
                     query = query.OrderBy(d => d.User!.Name);
                     break;
             }
 
-            // --- SAYFALAMA ---
+
             var page = filter.Page < 1 ? 1 : filter.Page;
             var limit = filter.Limit < 1 ? 12 : filter.Limit;
 
@@ -177,7 +178,7 @@ namespace healthapp.Repositories
 
         public async Task<ApiResponse<IEnumerable<Doctor>>> GetDoctorsByMaxRatingAsync()
         {
-            // Review'lara göre en yüksek rating'li doktorları sırala
+
             var doctors = await _context.Doctors
                 .AsNoTracking()
                 .OrderByDescending(d => d.Rating)
@@ -197,15 +198,14 @@ namespace healthapp.Repositories
             var doctor = await _context.Doctors.FirstOrDefaultAsync(d => d.UserId == userId);
             if (doctor == null) return new ApiResponse<bool>(404, "Doktor bulunamadı");
 
-            // Mevcut JSON'ı Dictionary olarak deserialize et
+
             var datesDict = string.IsNullOrEmpty(doctor.UnavailableDates) || doctor.UnavailableDates == "[]"
                 ? new Dictionary<string, UnavailableDateDetail>()
                 : JsonSerializer.Deserialize<Dictionary<string, UnavailableDateDetail>>(doctor.UnavailableDates);
 
             if (datesDict == null) datesDict = new Dictionary<string, UnavailableDateDetail>();
 
-            // Benzersiz bir Key oluştur (Örn: leave_638123123)
-            // DateTime.Ticks kullanarak sıralı ve benzersiz olmasını sağlıyoruz.
+
             string uniqueKey = $"leave_{DateTime.UtcNow.Ticks}";
 
             var newDateDetail = new UnavailableDateDetail
@@ -237,7 +237,7 @@ namespace healthapp.Repositories
 
             var targetDate = datesDict[dateKey];
 
-            // VALIDATION: Bitiş tarihi geçmişse silinemez
+
             if (targetDate.EndDate < DateTime.UtcNow)
             {
                 return new ApiResponse<bool>(400, "Geçmiş tarihli bir izin iptal edilemez.");
@@ -248,10 +248,10 @@ namespace healthapp.Repositories
                 return new ApiResponse<bool>(400, "Bu izin zaten iptal edilmiş.");
             }
 
-            // Soft Delete işlemi
+
             targetDate.IsDeleted = true;
 
-            // Objeyi güncelle ve kaydet
+
             datesDict[dateKey] = targetDate;
             doctor.UnavailableDates = JsonSerializer.Serialize(datesDict);
 
@@ -278,7 +278,7 @@ namespace healthapp.Repositories
             if (!string.IsNullOrEmpty(dto.About)) doctor.About = dto.About;
             if (dto.Experience.HasValue) doctor.Experience = dto.Experience.Value;
 
-            // --- LOKASYON GÜNCELLEME MANTIĞI ---
+
             bool locationChanged = false;
 
             if (dto.Province != null) { doctor.Province = dto.Province; locationChanged = true; }
@@ -288,7 +288,7 @@ namespace healthapp.Repositories
 
             if (locationChanged)
             {
-                // Format: İstanbul/Bayrampaşa/Yıldırım (Mahallesi), Ekstra Tarif
+
                 var locParts = new List<string>();
                 if (!string.IsNullOrWhiteSpace(doctor.Province)) locParts.Add(doctor.Province);
                 if (!string.IsNullOrWhiteSpace(doctor.District)) locParts.Add(doctor.District);
@@ -305,7 +305,7 @@ namespace healthapp.Repositories
                     doctor.FullLocation = mainLoc;
                 }
             }
-            // -----------------------------------
+
 
             doctor.UpdatedAt = DateTime.UtcNow;
 

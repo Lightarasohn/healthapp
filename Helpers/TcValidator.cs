@@ -23,7 +23,7 @@ namespace healthapp.Helpers
             int sumEven = digits[1] + digits[3] + digits[5] + digits[7];
 
             int tenthDigit = ((sumOdd * 7) - sumEven) % 10;
-            if (tenthDigit < 0) tenthDigit += 10; // Negatif modülasyon koruması
+            if (tenthDigit < 0) tenthDigit += 10;
 
             int eleventhDigit = (sumOdd + sumEven + digits[9]) % 10;
 

@@ -53,6 +53,13 @@ namespace healthapp.Controllers
             return Ok(response);
         }
 
+        [HttpGet("speciality")]
+        public async Task<IActionResult> GetAllSpecialities()
+        {
+            var response = await _adminRepository.GetAllSpecialitiesAsync();
+            return Ok(response);
+        }
+
         [HttpGet("users/role/{role}")]
         public async Task<IActionResult> GetUsersByRole(string role)
         {

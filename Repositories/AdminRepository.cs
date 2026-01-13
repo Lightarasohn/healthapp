@@ -4,6 +4,7 @@ using healthapp.DTOs.AdminDTOs;
 using healthapp.Interfaces;
 using healthapp.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Query;
 
 namespace healthapp.Repositories
 {
@@ -18,14 +19,21 @@ namespace healthapp.Repositories
             _passwordService = passwordService;
         }
 
-        // --- YENİ EKLENEN METOTLAR ---
+
 
         public async Task<ApiResponse<User>> GetUserByIdAsync(int id)
         {
-            var user = await _context.Users.FindAsync(id);
-            return user == null 
-                ? new ApiResponse<User>(404, "Kullanıcı bulunamadı") 
-                : new ApiResponse<User>(200, "Kullanıcı getirildi", user);
+
+            var user = await _context.Users
+                .Include(u => u.Doctors)
+                    .ThenInclude(d => d.SpecialityNavigation)
+                .Include(u => u.Appointments)
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.Id == id);
+
+            return user == null
+                ? new ApiResponse<User>(404, "Kullanıcı bulunamadı")
+                : new ApiResponse<User>(200, "Kullanıcı detayları getirildi", user);
         }
 
         public async Task<ApiResponse<User>> UpdateUserRoleAsync(int id, string role)
@@ -34,8 +42,8 @@ namespace healthapp.Repositories
             if (user == null) return new ApiResponse<User>(404, "Kullanıcı bulunamadı");
 
             user.Role = role;
-            
-            // Eğer doktor olduysa Doctor tablosuna da eklemek gerekebilir (basit tutuyoruz)
+
+
             if (role == "doctor" && !await _context.Doctors.AnyAsync(d => d.UserId == id))
             {
                 _context.Doctors.Add(new Doctor { UserId = id, Speciality = 1 });
@@ -65,7 +73,7 @@ namespace healthapp.Repositories
             return new ApiResponse<object>(200, "İstatistikler", stats);
         }
 
-        // --- MEVCUT METOTLAR ---
+
         public async Task<ApiResponse<object>> CreateAdminAsync(CreateAdminDto dto)
         {
             if (await _context.Users.AnyAsync(u => u.Email == dto.Email)) return new ApiResponse<object>(400, "Email kayıtlı");
@@ -75,28 +83,36 @@ namespace healthapp.Repositories
             return new ApiResponse<object>(201, "Admin oluşturuldu");
         }
 
-        public async Task<ApiResponse<IEnumerable<User>>> GetAllUsersAsync() => 
-            new ApiResponse<IEnumerable<User>>(200, "Liste", await _context.Users.AsNoTracking().ToListAsync());
+        public async Task<ApiResponse<IEnumerable<User>>> GetAllUsersAsync()
+        {
 
-        public async Task<ApiResponse<IEnumerable<User>>> GetUsersByRoleAsync(string role) => 
+            var list = await _context.Users
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .OrderByDescending(u => u.CreatedAt)
+                .ToListAsync();
+            return new ApiResponse<IEnumerable<User>>(200, "Tüm kullanıcılar", list);
+        }
+
+        public async Task<ApiResponse<IEnumerable<User>>> GetUsersByRoleAsync(string role) =>
             new ApiResponse<IEnumerable<User>>(200, "Liste", await _context.Users.AsNoTracking().Where(u => u.Role == role).ToListAsync());
 
         public async Task<ApiResponse<Doctor>> ApproveDoctorAsync(int userId)
         {
             var user = await _context.Users.FindAsync(userId);
-            if(user == null) return new ApiResponse<Doctor>(404, "Kullanıcı yok");
+            if (user == null) return new ApiResponse<Doctor>(404, "Kullanıcı yok");
             user.IsDoctorApproved = true;
             await _context.SaveChangesAsync();
             return new ApiResponse<Doctor>(200, "Onaylandı");
         }
 
         public async Task<ApiResponse<IEnumerable<Doctor>>> GetPendingDoctorsAsync() =>
-            new ApiResponse<IEnumerable<Doctor>>(200, "Bekleyenler", await _context.Doctors.AsNoTracking().Include(d => d.User).Where(d => d.User!.Role == "doctor" && d.User.IsDoctorApproved == false).ToListAsync());
+            new ApiResponse<IEnumerable<Doctor>>(200, "Bekleyenler", await _context.Doctors.AsNoTracking().Include(d => d.User).Include(d => d.SpecialityNavigation).Where(d => d.User!.Role == "doctor" && d.User.IsDoctorApproved == false).ToListAsync());
 
         public async Task<ApiResponse<bool>> DeleteUserAsync(int id)
         {
             var user = await _context.Users.FindAsync(id);
-            if(user == null) return new ApiResponse<bool>(404, "Kullanıcı yok");
+            if (user == null) return new ApiResponse<bool>(404, "Kullanıcı yok");
             _context.Users.Remove(user);
             await _context.SaveChangesAsync();
             return new ApiResponse<bool>(200, "Silindi", true);
@@ -108,7 +124,7 @@ namespace healthapp.Repositories
             if (user == null || string.IsNullOrEmpty(user.DoctorDocuments)) return (null, "", "");
             if (!File.Exists(user.DoctorDocuments)) return (null, "", "");
             var memory = new MemoryStream();
-            using(var stream = new FileStream(user.DoctorDocuments, FileMode.Open)) { await stream.CopyToAsync(memory); }
+            using (var stream = new FileStream(user.DoctorDocuments, FileMode.Open)) { await stream.CopyToAsync(memory); }
             memory.Position = 0;
             return (memory, "application/pdf", Path.GetFileName(user.DoctorDocuments));
         }

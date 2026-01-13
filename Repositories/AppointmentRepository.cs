@@ -35,32 +35,31 @@ namespace healthapp.Repositories
         {
             try
             {
-                // 1. DÜZELTME: Geçmiş Tarih ve Saat Kontrolü (Tam kapsamlı)
+
                 var now = DateTime.Now;
                 var today = DateOnly.FromDateTime(now);
                 var nowTime = TimeOnly.FromDateTime(now);
 
-                // a) Tarih geçmişse (dün, geçen ay vs.) direkt hata ver
+
                 if (dto.Date < today)
                 {
                     return new ApiResponse<Appointment>(400, "Geçmiş bir tarihe randevu alınamaz.");
                 }
 
-                // b) Tarih bugünse, saatin geçip geçmediğini kontrol et
+
                 if (dto.Date == today && dto.Start <= nowTime)
                 {
                     return new ApiResponse<Appointment>(400, "Geçmiş bir saate randevu alınamaz.");
                 }
 
-                // 2. Doktor ve Fiyat kontrolü
-                // Email'de doktor adını kullanmak için User tablosunu da Include ediyoruz.
+
                 var doctor = await _context.Doctors
                     .Include(d => d.User)
                     .FirstOrDefaultAsync(d => d.Id == dto.DoctorId);
 
                 if (doctor == null) return new ApiResponse<Appointment>(400, "Geçersiz doktor ID.");
 
-                // 3. İzinli gün (unavailableDates) kontrolü
+
                 if (!string.IsNullOrEmpty(doctor.UnavailableDates))
                 {
                     try
@@ -82,17 +81,16 @@ namespace healthapp.Repositories
                     catch (Exception ex)
                     {
                         Console.WriteLine($"UnavailableDates parse error: {ex.Message}");
-                        // JSON hatası akışı durdurmasın diye loglayıp devam edebilir veya hata fırlatabilirsin.
-                        // Burada devam etmeyi seçiyoruz.
+
                     }
                 }
 
-                // 4. Çalışma saatleri (clocks) kontrolü
+
                 if (string.IsNullOrEmpty(doctor.Clocks)) return new ApiResponse<Appointment>(400, "Doktorun çalışma saatleri tanımlanmamış.");
 
                 var dayName = dto.Date.DayOfWeek.ToString().ToLower();
 
-                // Clocks parse işlemi
+
                 var clocksJson = JsonDocument.Parse(doctor.Clocks).RootElement;
 
                 if (!clocksJson.TryGetProperty(dayName, out var daySchedule))
@@ -110,25 +108,24 @@ namespace healthapp.Repositories
                 var scheduleStart = TimeOnly.Parse(startStr);
                 var scheduleEnd = TimeOnly.Parse(endStr);
 
-                // Bitiş saati verilmemişse varsayılan olarak 1 saat ekle
+
                 var finalEnd = dto.End ?? dto.Start.AddHours(1);
 
-                // Randevu çalışma saatleri dışında mı?
+
                 if (dto.Start < scheduleStart || finalEnd > scheduleEnd)
                     return new ApiResponse<Appointment>(400, $"Çalışma saatleri dışı: {scheduleStart} - {scheduleEnd}");
 
-                // 5. Çakışan randevu kontrolü (Overlap Check)
+
                 var isOverlapping = await _context.Appointments.AnyAsync(a =>
                     a.DoctorId == dto.DoctorId &&
                     a.Date == dto.Date &&
-                    // İptal edilmemiş tüm randevuları dikkate al (booked, completed vs.)
                     a.Status != "cancelled" &&
                     dto.Start == a.Start && finalEnd == a.End
                 );
 
                 if (isOverlapping) return new ApiResponse<Appointment>(400, "Bu saat aralığında başka bir randevu mevcut.");
 
-                // 6. Kayıt İşlemi
+
                 var appointment = new Appointment
                 {
                     DoctorId = dto.DoctorId,
@@ -137,7 +134,7 @@ namespace healthapp.Repositories
                     Start = dto.Start,
                     End = finalEnd,
                     Notes = dto.Notes,
-                    Status = "booked", // İleride enum kullanmak daha temiz olur
+                    Status = "booked",
                     Price = doctor.ConsultationFee ?? 0,
                     CreatedAt = DateTime.UtcNow
                 };
@@ -145,8 +142,7 @@ namespace healthapp.Repositories
                 await _context.Appointments.AddAsync(appointment);
                 await _context.SaveChangesAsync();
 
-                // 7. Email Gönderme İşlemi
-                // Bu işlem ana akışı bozmaması için try-catch içinde yapılır.
+
                 try
                 {
                     var patient = await _context.Users.FindAsync(patientId);
@@ -171,7 +167,7 @@ namespace healthapp.Repositories
                 }
                 catch (Exception ex)
                 {
-                    // Email hatası kritik değildir, loglayıp devam et.
+
                     Console.WriteLine("Email gönderme hatası: " + ex.Message);
                 }
 
@@ -196,9 +192,9 @@ namespace healthapp.Repositories
 
         public async Task<ApiResponse<bool>> CancelAppointmentAsync(int userId, string role, int id)
         {
-            // Email gönderebilmek için Patient ve Doctor bilgilerini Include etmemiz lazım.
-            // FindAsync Include desteklemez, FirstOrDefaultAsync kullanıyoruz.
+
             var appointment = await _context.Appointments
+                .IgnoreQueryFilters()
                 .Include(a => a.Patient)
                 .Include(a => a.Doctor).ThenInclude(d => d!.User)
                 .FirstOrDefaultAsync(a => a.Id == id);
@@ -207,12 +203,12 @@ namespace healthapp.Repositories
 
             bool isAuthorized = false;
 
-            // Yetki Kontrolü
+
             if (role == "admin") isAuthorized = true;
             else if (role == "patient" && appointment.PatientId == userId) isAuthorized = true;
             else if (role == "doctor")
             {
-                // Randevudaki doktor ID'si, işlemi yapan kullanıcının doktor profiliyle eşleşiyor mu?
+
                 if (appointment.Doctor != null && appointment.Doctor.UserId == userId)
                     isAuthorized = true;
             }
@@ -222,7 +218,7 @@ namespace healthapp.Repositories
             appointment.Status = "cancelled";
             await _context.SaveChangesAsync();
 
-            // --- EMAIL GÖNDERME İŞLEMİ (İPTAL) ---
+
             try
             {
                 if (appointment.Patient != null && !string.IsNullOrEmpty(appointment.Patient.Email))
@@ -247,7 +243,7 @@ namespace healthapp.Repositories
             {
                 Console.WriteLine("İptal emaili gönderme hatası: " + ex.Message);
             }
-            // -------------------------------------
+
 
             return new ApiResponse<bool>(200, "Randevu iptal edildi.", true);
         }
@@ -258,8 +254,9 @@ namespace healthapp.Repositories
             if (doctor == null) return new ApiResponse<IEnumerable<Appointment>>(404, "Doktor bulunamadı.");
 
             var list = await _context.Appointments
+                .IgnoreQueryFilters()
                 .AsNoTracking()
-                .Where(a => a.DoctorId == doctor.Id && (a.Status == "booked" || a.Status == "completed"))
+                .Where(a => a.DoctorId == doctor.Id && !a.Deleted)
                 .Include(a => a.Patient)
                 .Include(a => a.HealthHistory)
                 .OrderBy(a => a.Date).ThenBy(a => a.Start)
@@ -271,11 +268,12 @@ namespace healthapp.Repositories
         public async Task<ApiResponse<IEnumerable<Appointment>>> GetPatientAppointmentsAsync(int patientId)
         {
             var list = await _context.Appointments
+                .IgnoreQueryFilters()
                 .AsNoTracking()
-                .Where(a => a.PatientId == patientId)
+                .Where(a => a.PatientId == patientId && !a.Deleted)
                 .Include(a => a.Doctor).ThenInclude(d => d!.User)
-                .Include(a => a.HealthHistory) // <-- EKLENDİ
-                .OrderByDescending(a => a.Date).ThenBy(a => a.Start) // Tarihe göre tersten sıralamak daha iyidir
+                .Include(a => a.HealthHistory)
+                .OrderByDescending(a => a.Date).ThenBy(a => a.Start)
                 .ToListAsync();
 
             return new ApiResponse<IEnumerable<Appointment>>(200, "Randevular getirildi", list);
@@ -299,14 +297,14 @@ namespace healthapp.Repositories
             var appointment = await _context.Appointments.FindAsync(id);
             if (appointment == null) return new ApiResponse<Appointment>(404, "Randevu bulunamadı.");
 
-            // Sadece randevu sahibi veya doktor değiştirebilir (basitlik için sadece hasta diyelim)
+
             if (appointment.PatientId != userId) return new ApiResponse<Appointment>(403, "Yetkisiz işlem.");
 
             appointment.Date = dto.Date;
             appointment.Start = dto.Start;
-            // End yoksa 1 saat ekle
+
             appointment.End = dto.End ?? dto.Start.AddHours(1);
-            appointment.Status = "booked"; // İptal edilmişse tekrar aktif et
+            appointment.Status = "booked";
 
             await _context.SaveChangesAsync();
             return new ApiResponse<Appointment>(200, "Randevu güncellendi", appointment);
@@ -319,26 +317,26 @@ namespace healthapp.Repositories
 
             if (appointment == null) return new ApiResponse<Appointment>(404, "Randevu bulunamadı.");
 
-            // Yetki kontrolü: Sadece randevunun doktoru tamamlayabilir
+
             if (appointment.Doctor?.UserId != userId)
                 return new ApiResponse<Appointment>(403, "Bu işlem için yetkiniz yok.");
 
             if (appointment.Status != "booked" && appointment.Status != "confirmed")
                 return new ApiResponse<Appointment>(400, "Sadece aktif randevular tamamlanabilir.");
 
-            // Transaction (İşlem bütünlüğü) başlatıyoruz
+
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                // 1. Randevu durumunu güncelle
+
                 appointment.Status = "completed";
 
-                // 2. Sağlık Geçmişi (HealthHistory) oluştur
+
                 var history = new HealthHistory
                 {
                     PatientId = appointment.PatientId,
-                    AppointmentId = appointment.Id, // İlişki kuruldu
-                    DoctorId = appointment.DoctorId, // Modelde varsa
+                    AppointmentId = appointment.Id,
+                    DoctorId = appointment.DoctorId,
                     Diagnosis = dto.Diagnosis,
                     Treatment = dto.Treatment,
                     Notes = dto.Notes,
@@ -350,7 +348,7 @@ namespace healthapp.Repositories
 
                 await transaction.CommitAsync();
 
-                // Geriye güncel veriyi döndür (HealthHistory dahil)
+
                 appointment.HealthHistory = history;
                 return new ApiResponse<Appointment>(200, "Randevu başarıyla tamamlandı ve kayıt oluşturuldu.", appointment);
             }
@@ -362,14 +360,14 @@ namespace healthapp.Repositories
         }
         public async Task<ApiResponse<IEnumerable<string>>> GetBookedSlotsAsync(int doctorId, DateOnly date)
         {
-            // İptal edilmemiş randevuların saatlerini çekiyoruz
+
             var bookedSlots = await _context.Appointments
                 .AsNoTracking()
                 .Where(a => a.DoctorId == doctorId && a.Date == date && a.Status != "cancelled")
-                .Select(a => a.Start) // TimeOnly olarak çekiyoruz
+                .Select(a => a.Start)
                 .ToListAsync();
 
-            // Frontend'in beklediği formatta (HH:mm) string listesine çeviriyoruz
+
             var formattedSlots = bookedSlots.Select(t => t.ToString("HH:mm"));
 
             return new ApiResponse<IEnumerable<string>>(200, "Dolu saatler getirildi", formattedSlots);

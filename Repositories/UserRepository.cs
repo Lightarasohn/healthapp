@@ -17,28 +17,26 @@ namespace healthapp.Repositories
         private readonly ITokenService _tokenService;
         private readonly IConfiguration _config;
         private readonly IEmailService _emailService;
+        private readonly IAppointmentRepository _appointmentRepository;
 
-        public UserRepository(PostgresContext context, IPasswordService passwordService, ITokenService tokenService, IConfiguration config, IEmailService emailService)
+        public UserRepository(PostgresContext context, IPasswordService passwordService, ITokenService tokenService, IConfiguration config, IEmailService emailService, IAppointmentRepository appointmentRepository)
         {
             _context = context;
             _passwordService = passwordService;
             _tokenService = tokenService;
             _config = config;
             _emailService = emailService;
+            _appointmentRepository = appointmentRepository;
         }
 
         public async Task<ApiResponse<object>> ChangePasswordAsync(int userId, ChangePasswordDto dto)
         {
             var user = await _context.Users.FindAsync(userId);
             if (user == null) return new ApiResponse<object>(404, "Kullanıcı bulunamadı.");
-
-            if (!_passwordService.VerifyPassword(dto.CurrentPassword, user.PasswordHash))
-                return new ApiResponse<object>(400, "Mevcut şifre yanlış.");
-
+            if (!_passwordService.VerifyPassword(dto.CurrentPassword, user.PasswordHash)) return new ApiResponse<object>(400, "Mevcut şifre yanlış.");
             user.PasswordHash = _passwordService.HashPassword(dto.NewPassword);
             await _context.SaveChangesAsync();
-
-            return new ApiResponse<object>(200, "Şifre başarıyla değiştirildi.");
+            return new ApiResponse<object>(200, "Şifre değiştirildi.");
         }
 
         public async Task<ApiResponse<object>> ResendVerificationEmailAsync(int userId)
@@ -47,12 +45,12 @@ namespace healthapp.Repositories
             if (user == null) return new ApiResponse<object>(404, "Kullanıcı bulunamadı.");
             if (user.IsVerified == true) return new ApiResponse<object>(400, "Hesap zaten doğrulanmış.");
 
-            // Yeni token oluştur
+
             user.VerificationToken = Guid.NewGuid().ToString("N");
             await _context.SaveChangesAsync();
 
             var verificationLink = $"{_config["CLIENT_URL"]}/verify-email/{user.VerificationToken}";
-            // Email gönderme işlemi (Basitçe)
+
             try
             {
                 await _emailService.SendEmailAsync(user.Email, "Doğrulama Linki", $"<a href='{verificationLink}'>Doğrula</a>");
@@ -67,75 +65,165 @@ namespace healthapp.Repositories
             var user = await _context.Users.FindAsync(userId);
             if (user == null) return new ApiResponse<bool>(404, "Kullanıcı bulunamadı.");
 
-            // Soft Delete
+
             user.Deleted = true;
-            // İlişkili doktor profili varsa onu da sil
-            var doctor = await _context.Doctors.FirstOrDefaultAsync(d => d.UserId == userId);
-            if (doctor != null) doctor.Deleted = true;
+            user.RefreshTokens = null;
 
-            await _context.SaveChangesAsync();
-            return new ApiResponse<bool>(200, "Hesap silindi.", true);
-        }
 
-        public async Task<ApiResponse<object>> RegisterAsync(RegisterDto dto, string? documentPath)
-        {
-            var existingUser = await _context.Users.AnyAsync(u => u.Email == dto.Email);
-            if (existingUser) return new ApiResponse<object>(400, "Bu email adresi zaten kayıtlı");
+            var doctor = await _context.Doctors
+                .Include(d => d.Appointments)
+                .FirstOrDefaultAsync(d => d.UserId == userId);
 
-            // --- TC DOĞRULAMA VE KONTROLÜ BAŞLANGIÇ ---
-            if (!string.IsNullOrEmpty(dto.Tc))
+            if (doctor != null)
             {
-                if (!TcValidator.Validate(dto.Tc))
-                {
-                    return new ApiResponse<object>(400, "Geçersiz TC Kimlik Numarası.");
-                }
+                doctor.Deleted = true;
 
-                var existingTc = await _context.Users.AnyAsync(u => u.Tc == dto.Tc);
-                if (existingTc)
+
+                var futureAppointments = doctor.Appointments
+                    .Where(a => a.Date >= DateOnly.FromDateTime(DateTime.Now) && a.Status != "cancelled" && !a.Deleted)
+                    .ToList();
+
+                foreach (var appointment in futureAppointments)
                 {
-                    return new ApiResponse<object>(400, "Bu TC Kimlik Numarası ile kayıtlı bir kullanıcı zaten var.");
+                    await _appointmentRepository.CancelAppointmentAsync(user.Id, "system", appointment.Id);
                 }
             }
             else
             {
-                // TC Kimlik No zorunlu ise:
-                return new ApiResponse<object>(400, "TC Kimlik Numarası zorunludur.");
+
+                var patientFutureAppointments = await _context.Appointments
+                     .Where(a => a.PatientId == userId && a.Date >= DateOnly.FromDateTime(DateTime.Now) && a.Status != "cancelled" && !a.Deleted)
+                     .ToListAsync();
+
+                foreach (var app in patientFutureAppointments)
+                {
+                    await _appointmentRepository.CancelAppointmentAsync(user.Id, "system", app.Id);
+                }
             }
-            // --- TC DOĞRULAMA SONU ---
+
+            await _context.SaveChangesAsync();
+            return new ApiResponse<bool>(200, "Hesabınız silindi. Gelecek randevularınız iptal edildi.", true);
+        }
+        public async Task<ApiResponse<object>> RegisterAsync(RegisterDto dto, string? documentPath)
+        {
+
+            if (string.IsNullOrEmpty(dto.Tc) || !TcValidator.Validate(dto.Tc))
+                return new ApiResponse<object>(400, "Geçersiz TC Kimlik Numarası.");
+
+
+            var activeUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email || u.Tc == dto.Tc);
+            if (activeUser != null)
+                return new ApiResponse<object>(400, "Bu bilgilerle kayıtlı aktif bir kullanıcı zaten var.");
+
 
             if (dto.Role == "doctor" && string.IsNullOrEmpty(documentPath))
-                return new ApiResponse<object>(400, "Doktor hesabı için belge yüklemesi zorunludur");
+                return new ApiResponse<object>(400, "Doktor hesabı için belge zorunludur.");
 
-            var user = new User
+            User user;
+            bool isReactivating = false;
+
+
+            var deletedUser = await _context.Users
+                .IgnoreQueryFilters()
+                .Include(u => u.Doctors)
+                .FirstOrDefaultAsync(u => (u.Email == dto.Email || u.Tc == dto.Tc) && u.Deleted);
+
+            if (deletedUser != null)
             {
-                Name = dto.Name,
-                Email = dto.Email,
-                PasswordHash = _passwordService.HashPassword(dto.Password),
-                Role = dto.Role,
-                Tc = dto.Tc, // TC veritabanına kaydediliyor
-                IsVerified = false,
-                VerificationToken = Guid.NewGuid().ToString("N"),
-                IsDoctorApproved = false,
-                DoctorDocuments = documentPath,
-                CreatedAt = DateTime.UtcNow
-            };
 
-            await _context.Users.AddAsync(user);
+                isReactivating = true;
+                user = deletedUser;
+
+                user.Name = dto.Name;
+                user.Email = dto.Email;
+                user.PasswordHash = _passwordService.HashPassword(dto.Password);
+                user.Deleted = false;
+                user.IsVerified = false;
+                user.VerificationToken = Guid.NewGuid().ToString("N");
+                user.UpdatedAt = DateTime.UtcNow;
+
+
+
+
+                if (user.Role == "doctor" && dto.Role == "patient")
+                {
+                    user.Role = "patient";
+
+                    var existingDoc = user.Doctors.FirstOrDefault();
+                    if (existingDoc != null) existingDoc.Deleted = true;
+                }
+
+                else if (user.Role == "patient" && dto.Role == "doctor")
+                {
+                    user.Role = "doctor";
+                    user.IsDoctorApproved = false;
+                    if (documentPath != null) user.DoctorDocuments = documentPath;
+
+                }
+
+                else
+                {
+                    if (user.Role == "doctor")
+                    {
+                        user.IsDoctorApproved = false;
+                        if (documentPath != null) user.DoctorDocuments = documentPath;
+                    }
+                }
+            }
+            else
+            {
+
+                user = new User
+                {
+                    Name = dto.Name,
+                    Email = dto.Email,
+                    PasswordHash = _passwordService.HashPassword(dto.Password),
+                    Role = dto.Role,
+                    Tc = dto.Tc,
+                    IsVerified = false,
+                    VerificationToken = Guid.NewGuid().ToString("N"),
+                    IsDoctorApproved = false,
+                    DoctorDocuments = documentPath,
+                    CreatedAt = DateTime.UtcNow,
+                    Deleted = false
+                };
+                await _context.Users.AddAsync(user);
+            }
+
             await _context.SaveChangesAsync();
 
-            // ... Doktor tablosuna ekleme ve Email gönderme kısımları aynı ...
+
             if (user.Role == "doctor")
             {
-                var doctor = new Doctor
+                var existingDoctor = await _context.Doctors
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(d => d.UserId == user.Id);
+
+                if (existingDoctor != null)
                 {
-                    UserId = user.Id,
-                    Speciality = dto.Speciality,
-                    Hospital = dto.Hospital ?? "Belirtilmemiş",
-                    CreatedAt = DateTime.UtcNow
-                };
-                await _context.Doctors.AddAsync(doctor);
+
+                    existingDoctor.Deleted = false;
+                    existingDoctor.Speciality = dto.Speciality;
+                    existingDoctor.Hospital = dto.Hospital ?? "Belirtilmemiş";
+                    existingDoctor.UpdatedAt = DateTime.UtcNow;
+
+                }
+                else
+                {
+
+                    var doctor = new Doctor
+                    {
+                        UserId = user.Id,
+                        Speciality = dto.Speciality,
+                        Hospital = dto.Hospital ?? "Belirtilmemiş",
+                        CreatedAt = DateTime.UtcNow,
+                        Deleted = false
+                    };
+                    await _context.Doctors.AddAsync(doctor);
+                }
                 await _context.SaveChangesAsync();
             }
+
 
             var verificationLink = $"{_config["CLIENT_URL"]}/verify-email/{user.VerificationToken}";
             var emailBody = $@"
@@ -152,20 +240,19 @@ namespace healthapp.Repositories
                 Console.WriteLine("Email gönderme hatası: " + ex.Message);
             }
 
-            return new ApiResponse<object>(201, "Kayıt başarılı. Lütfen e-postanızı doğrulayın.", new { user.Id, user.Email, user.VerificationToken });
+            return new ApiResponse<object>(201, isReactivating ? "Hesabınız tekrar aktifleştirildi." : "Kayıt başarılı.", new { user.Id });
         }
 
         public async Task<ApiResponse<object>> LoginAsync(LoginDto dto)
         {
+
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
+
             if (user == null || !_passwordService.VerifyPassword(dto.Password, user.PasswordHash))
                 return new ApiResponse<object>(401, "Geçersiz email veya şifre");
 
-            if (user.IsVerified != true)
-                return new ApiResponse<object>(401, "Lütfen önce e-posta adresinizi doğrulayın.");
-
-            if (user.Role == "doctor" && user.IsDoctorApproved != true)
-                return new ApiResponse<object>(403, "Hesabınız henüz admin tarafından onaylanmamış.");
+            if (user.IsVerified != true) return new ApiResponse<object>(401, "E-posta doğrulanmamış.");
+            if (user.Role == "doctor" && user.IsDoctorApproved != true) return new ApiResponse<object>(403, "Doktor onayı bekleniyor.");
 
             var accessToken = _tokenService.GenerateToken(user, true);
             var refreshToken = _tokenService.GenerateToken(user, false);
@@ -173,7 +260,6 @@ namespace healthapp.Repositories
             user.RefreshTokens ??= new List<string>();
             if (user.RefreshTokens.Count >= 3) user.RefreshTokens.RemoveAt(0);
             user.RefreshTokens.Add(refreshToken);
-
             await _context.SaveChangesAsync();
 
             return new ApiResponse<object>(200, "Giriş başarılı", new { user, tokens = new { accessToken, refreshToken } });
@@ -182,8 +268,7 @@ namespace healthapp.Repositories
         public async Task<ApiResponse<User>> GetProfileAsync(int userId)
         {
             var user = await _context.Users.FindAsync(userId);
-            if (user == null) return new ApiResponse<User>(404, "Kullanıcı bulunamadı.");
-            return new ApiResponse<User>(200, "Profil getirildi", user);
+            return user == null ? new ApiResponse<User>(404, "Bulunamadı") : new ApiResponse<User>(200, "Profil", user);
         }
 
         public async Task<ApiResponse<User>> UpdateProfileAsync(int userId, UpdateProfileDto dto)
@@ -191,31 +276,31 @@ namespace healthapp.Repositories
             var user = await _context.Users.FindAsync(userId);
             if (user == null) return new ApiResponse<User>(404, "Kullanıcı bulunamadı.");
 
-            // İsim güncellemesi (Direkt yapılır)
+
             if (!string.IsNullOrEmpty(dto.Name)) user.Name = dto.Name;
 
-            // Avatar güncellemesi (Direkt yapılır)
+
             if (!string.IsNullOrEmpty(dto.Avatar)) user.Avatar = dto.Avatar;
 
-            // Email Güncelleme Mantığı (Beklemeli)
+
             bool emailChangeRequested = false;
             if (!string.IsNullOrEmpty(dto.Email) && dto.Email != user.Email)
             {
-                // 1. Bu email başkası tarafından kullanılıyor mu?
+
                 var emailExists = await _context.Users.AnyAsync(u => u.Email == dto.Email);
                 if (emailExists)
                     return new ApiResponse<User>(400, "Bu email adresi kullanımda.");
 
-                // 2. Email'i hemen değiştirme! Pending alanlarına yaz.
+
                 user.PendingEmail = dto.Email;
                 user.PendingEmailToken = Guid.NewGuid().ToString("N");
 
-                // Kural: 1 Dakika süre
+
                 user.PendingEmailTokenExpire = DateTime.UtcNow.AddMinutes(1);
 
                 emailChangeRequested = true;
 
-                // 3. Yeni e-posta adresine doğrulama linki gönder
+
                 var verifyUrl = $"{_config["CLIENT_URL"]}/verify-email-change/{user.PendingEmailToken}";
                 var emailBody = $@"
             <h3>E-posta Değişikliği Onayı</h3>
@@ -245,7 +330,6 @@ namespace healthapp.Repositories
             return new ApiResponse<User>(200, message, user);
         }
 
-        // Yeni Metot: Email Değişikliğini Onaylama
         public async Task<ApiResponse<object>> ConfirmEmailChangeAsync(string token)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.PendingEmailToken == token);
@@ -253,10 +337,10 @@ namespace healthapp.Repositories
             if (user == null)
                 return new ApiResponse<object>(400, "Geçersiz token.");
 
-            // Süre kontrolü (1 dakika kuralı)
+
             if (user.PendingEmailTokenExpire < DateTime.UtcNow)
             {
-                // Süre dolduysa pending alanlarını temizle
+
                 user.PendingEmail = null;
                 user.PendingEmailToken = null;
                 user.PendingEmailTokenExpire = null;
@@ -264,16 +348,14 @@ namespace healthapp.Repositories
                 return new ApiResponse<object>(400, "Doğrulama süresi (1 dakika) doldu. İşlem iptal edildi.");
             }
 
-            // Onay başarılı: PendingEmail'i gerçek Email yap
+
             user.Email = user.PendingEmail!;
 
-            // Temizlik
+
             user.PendingEmail = null;
             user.PendingEmailToken = null;
             user.PendingEmailTokenExpire = null;
 
-            // Güvenlik: Email değiştiği için isterseniz oturumları kapatabilirsiniz veya verified true kalabilir
-            // user.IsVerified = true; // Zaten verified idi.
 
             await _context.SaveChangesAsync();
 
@@ -282,10 +364,14 @@ namespace healthapp.Repositories
 
         public async Task<ApiResponse<IEnumerable<HealthHistory>>> GetHealthHistoryAsync(int userId)
         {
+
             var history = await _context.HealthHistories
+                .IgnoreQueryFilters()
                 .AsNoTracking()
+                .Include(h => h.Doctor).ThenInclude(d => d!.User)
                 .Where(h => h.PatientId == userId && !h.Deleted)
                 .ToListAsync();
+
             return new ApiResponse<IEnumerable<HealthHistory>>(200, "Geçmiş getirildi", history);
         }
 
@@ -301,19 +387,15 @@ namespace healthapp.Repositories
             return new ApiResponse<object>(200, "E-posta başarıyla doğrulandı.");
         }
 
-        // --- FAVORİ İŞLEMLERİ (DÜZELTİLDİ) ---
-        // Not: User modelindeki 'Doctors' -> Kullanıcının kendi doktor profili (varsa)
-        //      User modelindeki 'DoctorsNavigation' -> Kullanıcının FAVORİLEDİĞİ doktorlar (EF Core otomatik isimlendirme)
-
         public async Task<ApiResponse<object>> AddFavoriteDoctorAsync(int userId, int doctorId)
         {
             var doctor = await _context.Doctors.FindAsync(doctorId);
-            // DÜZELTİLDİ: Include(u => u.DoctorsNavigation) kullanıldı
+
             var user = await _context.Users.Include(u => u.DoctorsNavigation).FirstOrDefaultAsync(u => u.Id == userId);
 
             if (user != null && doctor != null)
             {
-                // DÜZELTİLDİ: Eğer zaten favori değilse ekle
+
                 if (!user.DoctorsNavigation.Any(d => d.Id == doctorId))
                 {
                     user.DoctorsNavigation.Add(doctor);
@@ -325,15 +407,14 @@ namespace healthapp.Repositories
 
         public async Task<ApiResponse<IEnumerable<Doctor>>> GetFavoriteDoctorsAsync(int userId)
         {
+
             var user = await _context.Users
                 .AsNoTracking()
-                .Include(u => u.DoctorsNavigation)
-                    .ThenInclude(d => d.User) // Doktorun kullanıcı bilgileri (Ad, Avatar vs.)
-                .Include(u => u.DoctorsNavigation)
-                    .ThenInclude(d => d.SpecialityNavigation) // <-- EKLENEN KISIM: Uzmanlık ismini çekmek için
+                .Include(u => u.DoctorsNavigation).ThenInclude(d => d.User)
+                .Include(u => u.DoctorsNavigation).ThenInclude(d => d.SpecialityNavigation)
                 .FirstOrDefaultAsync(u => u.Id == userId);
 
-            return new ApiResponse<IEnumerable<Doctor>>(200, "Favoriler getirildi", user?.DoctorsNavigation ?? new List<Doctor>());
+            return new ApiResponse<IEnumerable<Doctor>>(200, "Favoriler", user?.DoctorsNavigation ?? new List<Doctor>());
         }
 
         public async Task<ApiResponse<object>> RemoveFavoriteDoctorAsync(int userId, string doctorId)
@@ -341,7 +422,7 @@ namespace healthapp.Repositories
             if (!int.TryParse(doctorId, out int dId))
                 return new ApiResponse<object>(400, "Geçersiz Doktor ID");
 
-            // DÜZELTİLDİ: DoctorsNavigation kullanıldı
+
             var user = await _context.Users.Include(u => u.DoctorsNavigation).FirstOrDefaultAsync(u => u.Id == userId);
 
             var doctor = user?.DoctorsNavigation.FirstOrDefault(d => d.Id == dId);
@@ -352,7 +433,7 @@ namespace healthapp.Repositories
             }
             return new ApiResponse<object>(200, "Favori doktor kaldırıldı.");
         }
-        // ------------------------------------
+
 
         public async Task<ApiResponse<object>> ForgotPasswordAsync(string email)
         {
@@ -422,7 +503,7 @@ namespace healthapp.Repositories
             if (user == null)
                 return new ApiResponse<bool>(404, "Kullanıcı bulunamadı.");
 
-            // Kullanıcının kayıtlı TC'si ile girilen TC eşleşiyor mu?
+
             if (user.Tc != tcNumber)
                 return new ApiResponse<bool>(400, "Girdiğiniz TC Kimlik Numarası sistemdeki ile uyuşmuyor.", false);
 

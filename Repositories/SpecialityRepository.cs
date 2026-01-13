@@ -33,7 +33,7 @@ namespace healthapp.Repositories
 
         public async Task<ApiResponse<Speciality>> AddSpecialityAsync(CreateSpecialityDto dto)
         {
-            // Aynı isimde kayıt var mı kontrolü
+
             if (await _context.Specialities.AnyAsync(s => s.Name.ToLower() == dto.Name.ToLower()))
                 return new ApiResponse<Speciality>(400, "Bu uzmanlık alanı zaten mevcut");
 
@@ -55,7 +55,7 @@ namespace healthapp.Repositories
                 return new ApiResponse<Speciality>(404, "Uzmanlık alanı bulunamadı");
 
             speciality.Name = dto.Name;
-            
+
             await _context.SaveChangesAsync();
             return new ApiResponse<Speciality>(200, "Uzmanlık alanı güncellendi", speciality);
         }
@@ -66,8 +66,7 @@ namespace healthapp.Repositories
             if (speciality == null)
                 return new ApiResponse<bool>(404, "Uzmanlık alanı bulunamadı");
 
-            // Eğer bu uzmanlık alanına bağlı doktorlar varsa silmeyi engelleyebilirsin (Opsiyonel)
-            // Bu örnekte direkt siliyoruz.
+
             _context.Specialities.Remove(speciality);
             await _context.SaveChangesAsync();
 
